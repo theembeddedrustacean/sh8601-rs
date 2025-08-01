@@ -1,7 +1,7 @@
 [package]
 edition = "2021"
 name = "sh8601-rs"
-version = "0.1.5"
+version = "0.1.6"
 description = "A Rust driver for the SH8601 display controller"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/theembeddedrustacean/sh8601-rs"
@@ -51,7 +51,7 @@ waveshare_18_amoled = [
   "dep:esp-println",
   "dep:critical-section",
   "dep:esp-bootloader-esp-idf",
-  "esp-println/jtag-serial",
+  "esp-println/auto",
 ]
 
 [profile.dev]

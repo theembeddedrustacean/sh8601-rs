@@ -4,10 +4,8 @@
 use crate::{ControllerInterface, ResetInterface};
 use esp_hal::{
     delay::Delay,
-    i2c::master::{Error as I2cError, I2c},
-    spi::master::DataMode,
     spi::{
-        master::{Address, Command, SpiDmaBus},
+        master::{Address, Command, DataMode, SpiDmaBus},
         Error as SpiError,
     },
     Blocking,
@@ -89,18 +87,21 @@ impl ControllerInterface for Ws18AmoledDriver {
 }
 
 /// I2C-controlled GPIO Reset Pin
-pub struct ResetDriver {
-    i2c: I2c<'static, Blocking>,
+pub struct ResetDriver<I2C> {
+    i2c: I2C,
 }
 
-impl ResetDriver {
-    pub fn new(i2c: I2c<'static, Blocking>) -> Self {
+impl<I2C> ResetDriver<I2C> {
+    pub fn new(i2c: I2C) -> Self {
         ResetDriver { i2c }
     }
 }
 
-impl ResetInterface for ResetDriver {
-    type Error = I2cError;
+impl<I2C> ResetInterface for ResetDriver<I2C>
+where
+    I2C: embedded_hal::i2c::I2c,
+{
+    type Error = I2C::Error;
 
     fn reset(&mut self) -> Result<(), Self::Error> {
         let delay = Delay::new();
