@@ -2,14 +2,14 @@
 #![no_main]
 
 use sh8601_rs::{
-    framebuffer_size, ColorMode, DisplaySize, ResetDriver, Sh8601Driver, Ws18AmoledDriver,
-    DMA_CHUNK_SIZE,
+    ColorMode, DMA_CHUNK_SIZE, DisplaySize, ResetDriver, Sh8601Driver, Ws18AmoledDriver,
+    framebuffer_size,
 };
 
 use embedded_graphics::{
     mono_font::{
-        ascii::{FONT_10X20, FONT_6X10},
         MonoTextStyle,
+        ascii::{FONT_6X10, FONT_10X20},
     },
     pixelcolor::Rgb888,
     prelude::*,
@@ -28,8 +28,8 @@ use esp_hal::{
     i2c::master::{Config as I2cConfig, I2c},
     main,
     spi::{
-        master::{Config as SpiConfig, Spi},
         Mode,
+        master::{Config as SpiConfig, Spi},
     },
     time::Rate,
 };

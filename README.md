@@ -26,5 +26,5 @@ The schematic is available here: Waveshare ESP32-S3-Touch-AMOLED-1.8
 To run the example, with the WaveShare 1.8" AMOLED Display, clone the project and run following command from the project root:
 
 ```bash
-cargo run --example ws_18in_amoled --features "waveshare_18_amoled"
+cargo run --release --example ws_18in_amoled --features "waveshare_18_amoled"
 ```

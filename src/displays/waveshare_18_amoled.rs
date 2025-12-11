@@ -3,12 +3,12 @@
 
 use crate::{ControllerInterface, ResetInterface};
 use esp_hal::{
+    Blocking,
     delay::Delay,
     spi::{
-        master::{Address, Command, DataMode, SpiDmaBus},
         Error as SpiError,
+        master::{Address, Command, DataMode, SpiDmaBus},
     },
-    Blocking,
 };
 
 const CMD_RAMWR: u32 = 0x2C;

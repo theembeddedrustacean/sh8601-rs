@@ -181,15 +181,15 @@ pub enum Framebuffer {
 impl Framebuffer {
     pub fn as_mut_slice(&mut self) -> &mut [u8] {
         match self {
-            Framebuffer::Static(ref mut arr) => arr,
-            Framebuffer::Heap(ref mut boxed) => boxed,
+            Framebuffer::Static(arr) => arr,
+            Framebuffer::Heap(boxed) => boxed,
         }
     }
 
     pub fn as_slice(&self) -> &[u8] {
         match self {
-            Framebuffer::Static(ref arr) => arr,
-            Framebuffer::Heap(ref boxed) => boxed,
+            Framebuffer::Static(arr) => arr,
+            Framebuffer::Heap(boxed) => boxed,
         }
     }
 
