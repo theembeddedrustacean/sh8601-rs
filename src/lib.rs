@@ -39,11 +39,13 @@
 //!
 
 #![no_std]
-#[cfg(feature = "waveshare_18_amoled")]
 pub mod displays;
 
 #[cfg(feature = "waveshare_18_amoled")]
 pub use displays::waveshare_18_amoled::*;
+
+#[cfg(feature = "waveshare_143_tch_amoled")]
+pub use displays::waveshare_143_tch_amoled::*;
 
 extern crate alloc;
 

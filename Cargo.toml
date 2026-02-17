@@ -52,6 +52,15 @@ waveshare_18_amoled = [
   "dep:esp-bootloader-esp-idf",
   "esp-println/auto",
 ]
+waveshare_143_tch_amoled = [
+  "dep:esp-alloc",
+  "dep:esp-backtrace",
+  "dep:esp-hal",
+  "dep:esp-println",
+  "dep:critical-section",
+  "dep:esp-bootloader-esp-idf",
+  "esp-println/auto",
+]
 
 [profile.dev]
 # Rust debug is too slow.

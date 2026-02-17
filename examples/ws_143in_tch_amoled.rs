@@ -2,7 +2,7 @@
 #![no_main]
 
 use sh8601_rs::{
-    ColorMode, DMA_CHUNK_SIZE, DisplaySize, ResetDriver, Sh8601Driver, Ws18AmoledDriver,
+    ColorMode, DMA_CHUNK_SIZE, DisplaySize, ResetDriver, Sh8601Driver, Ws143TouchAmoledDriver,
     framebuffer_size,
 };
 
@@ -25,7 +25,7 @@ use esp_hal::{
     delay::Delay,
     dma::{DmaRxBuf, DmaTxBuf},
     dma_buffers,
-    i2c::master::{Config as I2cConfig, I2c},
+    gpio::{Level, Output, OutputConfig},
     main,
     spi::{
         Mode,
@@ -62,41 +62,40 @@ fn main() -> ! {
             .with_mode(Mode::_0),
     )
     .unwrap()
-    .with_sio0(peripherals.GPIO4)
-    .with_sio1(peripherals.GPIO5)
-    .with_sio2(peripherals.GPIO6)
-    .with_sio3(peripherals.GPIO7)
-    .with_cs(peripherals.GPIO12)
-    .with_sck(peripherals.GPIO11)
+    .with_sio0(peripherals.GPIO11)
+    .with_sio1(peripherals.GPIO12)
+    .with_sio2(peripherals.GPIO13)
+    .with_sio3(peripherals.GPIO14)
+    .with_cs(peripherals.GPIO9)
+    .with_sck(peripherals.GPIO10)
     .with_dma(peripherals.DMA_CH0)
     .with_buffers(dma_rx_buf, dma_tx_buf);
 
-    // I2C Configuration for Waveshare ESP32-S3 1.8inch AMOLED Touch Display
-    // Display uses an I2C IO Expander (TCA9554PWR) to control the LCD_RESET and LCD_DC lines.
+    // GPIO Configuration for Waveshare ESP32-S3 1.43inch AMOLED Touch Display
+    // Display uses an GPIO to control the OLED_RESET and OLED_EN lines.
     // Pinout:
-    // SDA -> GPIO15
-    // SCL -> GPIO14
+    // OLED_RESET -> GPIO21
+    // OLED_EN -> GPIO42
     // Schematic:
-    // https://files.waveshare.com/wiki/ESP32-S3-Touch-AMOLED-1.8/ESP32-S3-Touch-AMOLED-1.8.pdf
-    let i2c = I2c::new(
-        peripherals.I2C0,
-        I2cConfig::default().with_frequency(Rate::from_khz(400)),
-    )
-    .unwrap()
-    .with_sda(peripherals.GPIO15)
-    .with_scl(peripherals.GPIO14);
+    // https://files.waveshare.com/wiki/ESP32-S3-Touch-AMOLED-1.43/ESP32-S3-Touch-AMOLED-1.43-Schematic.pdf
+    let oled_reset_pin = Output::new(peripherals.GPIO21, Level::Low, OutputConfig::default());
+    let mut oled_en_pin = Output::new(peripherals.GPIO42, Level::Low, OutputConfig::default());
 
     // Initialize I2C GPIO Reset Pin for the WaveShare 1.8" AMOLED display
-    let reset = ResetDriver::new(i2c);
+    let reset = ResetDriver::new(oled_reset_pin);
 
     // Initialize display driver for the Waveshare 1.8" AMOLED display
-    let ws_driver = Ws18AmoledDriver::new(lcd_spi);
+    let ws_driver = Ws143TouchAmoledDriver::new(lcd_spi);
 
     // Set up the display size
-    const DISPLAY_SIZE: DisplaySize = DisplaySize::new(368, 448);
+    const DISPLAY_SIZE: DisplaySize = DisplaySize::new(466, 466);
 
     // Calculate framebuffer size based on the display size and color mode
     const FB_SIZE: usize = framebuffer_size(DISPLAY_SIZE, ColorMode::Rgb888);
+
+    // Enable the display
+    oled_en_pin.set_high();
+    delay.delay_millis(100);
 
     // Instantiate and Initialize Display
     println!("Initializing SH8601 Display...");
