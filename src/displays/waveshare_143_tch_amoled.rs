@@ -1,7 +1,7 @@
 //! Driver implementation for Waveshare ESP32-S3 1.8" AMOLED
 //! Uses QSPI interface and I2C-based GPIO expander or GPIO for reset.
 
-use crate::{ControllerInterface, ResetInterface};
+use crate::{ControllerInterface, ResetInterface, commands};
 use esp_hal::{
     Blocking,
     delay::Delay,
@@ -84,6 +84,36 @@ impl ControllerInterface for Ws143TouchAmoledDriver {
         }
         Ok(())
     }
+
+    // seems like some waveshare 1.43in have a different lcd driver (co5300 instead of sh8601)
+    // which have a different init sequence but still work with this driver
+
+    // co5300 init sequence
+    fn vendor_specific_init_commands() -> &'static [(u8, &'static [u8], u32)] {
+        &[
+            (commands::SLPOUT, &[], 120),
+            (commands::SPI_MODE, &[0x80], 0),
+            (commands::WRCTRLD1, &[0x20], 1),
+            (commands::HBM_WRDISBV1, &[0xFF], 1),
+            (commands::WRDISBV, &[0x00], 1),
+            (commands::SLPOUT, &[0x00], 10),
+            (commands::WRDISBV, &[0xFF], 0),
+            //
+        ]
+    }
+
+    // sh8601 init sequence
+    //fn vendor_specific_init_commands() -> &'static [(u8, &'static [u8], u32)] {
+    //    &[
+    //        (commands::SLPOUT, &[], 120),
+    //        (commands::TESCAN, &[0x01, 0xD1], 0),
+    //        (commands::TEON, &[0x00], 0),
+    //        (commands::WRCTRLD1, &[0x20], 10),
+    //        (commands::WRDISBV, &[0x00], 10),
+    //        (commands::SLPOUT, &[0x00], 10),
+    //        (commands::WRDISBV, &[0xFF], 0),
+    //    ]
+    //}
 }
 
 /// I2C-controlled GPIO Reset Pin

@@ -96,6 +96,16 @@ pub trait ControllerInterface {
     fn send_pixels(&mut self, pixels: &[u8]) -> Result<(), Self::Error>;
 
     // fn read_data(&mut self, cmd: u8, buffer: &mut [u8], read_length: u8) -> Result<(), Self::Error>;
+
+    /// vendor specific initialization commands.
+    /// [(command, data, delay_ms)]
+    fn vendor_specific_init_commands() -> &'static [(u8, &'static [u8], u32)] {
+        &[
+            (commands::TESCAN, &[0x01, 0xD1], 0),
+            (commands::TEON, &[0x00], 0),
+            (commands::WRCTRLD1, &[0x20], 25),
+        ]
+    }
 }
 
 /// Trait for controlling the SH8601 hardware reset pin.
@@ -142,6 +152,8 @@ pub mod commands {
     pub const RDDISBV: u8 = 0x52; // Read Display Brightness Value
     pub const WRCTRLD1: u8 = 0x53; // Write CTRL Display 1
     pub const RDCTRLD1: u8 = 0x54; // Read CTRL Display 1
+    pub const HBM_WRDISBV1: u8 = 0x63; // Write Display Brightness Value in HBM Mode
+    pub const SPI_MODE: u8 = 0xC4; // SPI Mode Control
 }
 
 /// Color modes supported by the SH8601 display controller.
@@ -299,6 +311,21 @@ where
         Ok(())
     }
 
+    /// Sends vendor-specific initialization commands to the display.
+    pub fn send_vendor_specific_init_commands<DELAY>(
+        &mut self,
+        delay: &mut DELAY,
+    ) -> Result<(), DriverError<IFACE::Error, RST::Error>>
+    where
+        DELAY: DelayNs,
+    {
+        for (command, data, delay_ms) in IFACE::vendor_specific_init_commands() {
+            self.send_command_with_data(*command, data)?;
+            delay.delay_ms(*delay_ms);
+        }
+        Ok(())
+    }
+
     /// Sends the essential initialization command sequence to the display.
     pub fn initialize_display<DELAY>(
         &mut self,
@@ -310,8 +337,6 @@ where
     {
         self.send_command(commands::SWRESET)?;
         delay.delay_ms(10);
-        self.send_command(commands::SLPOUT)?;
-        delay.delay_ms(120);
         match color {
             ColorMode::Rgb565 => {
                 // Set pixel format to RGB565
@@ -332,13 +357,10 @@ where
         }
         delay.delay_ms(5);
         self.send_command_with_data(commands::MADCTL, &[0x00])?;
-        self.send_command_with_data(commands::TESCAN, &[0x01, 0xC5])?;
-        self.send_command_with_data(commands::TEON, &[0x00])?;
+
+        self.send_vendor_specific_init_commands(delay)?;
 
         self.send_command(commands::DISPON)?;
-        delay.delay_ms(120);
-
-        self.send_command_with_data(commands::PTLAR, &[0x00, 0x80, 0x00, 0x02])?;
         delay.delay_ms(10);
 
         Ok(())
