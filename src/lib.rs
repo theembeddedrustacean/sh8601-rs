@@ -99,7 +99,7 @@ pub trait ControllerInterface {
 
     /// vendor specific initialization commands.
     /// [(command, data, delay_ms)]
-    fn vendor_specific_init_commands() -> &'static [(u8, &'static [u8], u32)] {
+    fn vendor_specific_init_commands(&self) -> &'static [(u8, &'static [u8], u32)] {
         &[
             (commands::TESCAN, &[0x01, 0xD1], 0),
             (commands::TEON, &[0x00], 0),
@@ -319,7 +319,7 @@ where
     where
         DELAY: DelayNs,
     {
-        for (command, data, delay_ms) in IFACE::vendor_specific_init_commands() {
+        for (command, data, delay_ms) in IFACE::vendor_specific_init_commands(&self.interface) {
             self.send_command_with_data(*command, data)?;
             delay.delay_ms(*delay_ms);
         }

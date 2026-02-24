@@ -87,6 +87,10 @@ fn main() -> ! {
     // Initialize display driver for the Waveshare 1.8" AMOLED display
     let ws_driver = Ws143TouchAmoledDriver::new(lcd_spi);
 
+    // Some Waveshare 1.43 displays use a different LCD driver (CO5300 instead of SH8601)
+    // which have a different init sequence but still work with this driver
+    // let ws_driver = ws_driver.use_co5300_init_cmds();
+
     // Set up the display size
     const DISPLAY_SIZE: DisplaySize = DisplaySize::new(466, 466);
 

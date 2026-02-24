@@ -85,7 +85,7 @@ impl ControllerInterface for Ws18AmoledDriver {
         Ok(())
     }
 
-    fn vendor_specific_init_commands() -> &'static [(u8, &'static [u8], u32)] {
+    fn vendor_specific_init_commands(&self) -> &'static [(u8, &'static [u8], u32)] {
         &[
             (commands::SLPOUT, &[], 120),
             (commands::TESCAN, &[0x01, 0xC5], 0),
