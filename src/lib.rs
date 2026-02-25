@@ -39,7 +39,6 @@
 //!
 
 #![no_std]
-pub mod displays;
 
 #[cfg(feature = "waveshare_18_amoled")]
 pub use displays::waveshare_18_amoled::*;
