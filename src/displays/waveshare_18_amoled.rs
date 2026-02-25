@@ -1,7 +1,7 @@
 //! Driver implementation for Waveshare ESP32-S3 1.8" AMOLED
 //! Uses QSPI interface and I2C-based GPIO expander or GPIO for reset.
 
-use crate::{ControllerInterface, ResetInterface};
+use crate::{ControllerInterface, ResetInterface, commands};
 use esp_hal::{
     Blocking,
     delay::Delay,
@@ -83,6 +83,16 @@ impl ControllerInterface for Ws18AmoledDriver {
             }
         }
         Ok(())
+    }
+
+    fn vendor_specific_init_commands(&self) -> &'static [(u8, &'static [u8], u32)] {
+        &[
+            (commands::SLPOUT, &[], 120),
+            (commands::TESCAN, &[0x01, 0xC5], 0),
+            (commands::TEON, &[0x00], 0),
+            (commands::DISPON, &[], 120),
+            (commands::PTLAR, &[0x00, 0x80, 0x00, 0x02], 10),
+        ]
     }
 }
 

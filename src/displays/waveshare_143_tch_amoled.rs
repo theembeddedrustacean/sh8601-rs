@@ -1,7 +1,7 @@
 //! Driver implementation for Waveshare ESP32-S3 1.8" AMOLED
 //! Uses QSPI interface and I2C-based GPIO expander or GPIO for reset.
 
-use crate::{ControllerInterface, ResetInterface};
+use crate::{ControllerInterface, ResetInterface, commands};
 use esp_hal::{
     Blocking,
     delay::Delay,
@@ -20,11 +20,24 @@ pub const DMA_CHUNK_SIZE: usize = 16380;
 /// QSPI implementation of ControllerInterface for SH8601
 pub struct Ws143TouchAmoledDriver {
     pub qspi: SpiDmaBus<'static, Blocking>,
+    pub use_co5300_init_cmds: bool,
 }
 
 impl Ws143TouchAmoledDriver {
     pub fn new(qspi: SpiDmaBus<'static, Blocking>) -> Self {
-        Ws143TouchAmoledDriver { qspi }
+        Ws143TouchAmoledDriver {
+            qspi,
+            use_co5300_init_cmds: false,
+        }
+    }
+
+    /// Seems like some waveshare 1.43 have a different lcd driver (co5300 instead of sh8601)
+    /// which have a different init sequence but still work with this driver
+    pub fn use_co5300_init_cmds(self) -> Self {
+        Self {
+            use_co5300_init_cmds: true,
+            ..self
+        }
     }
 }
 
@@ -83,6 +96,32 @@ impl ControllerInterface for Ws143TouchAmoledDriver {
             }
         }
         Ok(())
+    }
+
+    fn vendor_specific_init_commands(&self) -> &'static [(u8, &'static [u8], u32)] {
+        if self.use_co5300_init_cmds {
+            // co5300 init sequence
+            &[
+                (commands::SLPOUT, &[], 120),
+                (commands::SPI_MODE, &[0x80], 0),
+                (commands::WRCTRLD1, &[0x20], 1),
+                (commands::HBM_WRDISBV1, &[0xFF], 1),
+                (commands::WRDISBV, &[0x00], 1),
+                (commands::SLPOUT, &[0x00], 10),
+                (commands::WRDISBV, &[0xFF], 0),
+            ]
+        } else {
+            // sh8601 init sequence
+            &[
+                (commands::SLPOUT, &[], 120),
+                (commands::TESCAN, &[0x01, 0xD1], 0),
+                (commands::TEON, &[0x00], 0),
+                (commands::WRCTRLD1, &[0x20], 10),
+                (commands::WRDISBV, &[0x00], 10),
+                (commands::SLPOUT, &[0x00], 10),
+                (commands::WRDISBV, &[0xFF], 0),
+            ]
+        }
     }
 }
 
