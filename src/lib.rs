@@ -49,8 +49,13 @@ extern crate alloc;
 
 mod graphics_core;
 
+use core::marker::PhantomData;
+
 use alloc::boxed::Box;
 use embedded_graphics_core::draw_target::DrawTarget;
+use embedded_graphics_core::pixelcolor::raw::{RawData, RawU16};
+use embedded_graphics_core::pixelcolor::{Gray8, GrayColor, Rgb565, Rgb888, RgbColor};
+use embedded_graphics_core::prelude::PixelColor;
 use embedded_hal::delay::DelayNs;
 
 /// Configuration for the display dimensions.
@@ -166,6 +171,110 @@ impl ColorMode {
     }
 }
 
+/// Pixel color format for the SH8601 framebuffer.
+///
+/// Implementors define how an `embedded-graphics` [`PixelColor`] is encoded
+/// into the raw byte buffer that gets flushed to the display. The driver is
+/// generic over this trait, so callers choose the format at construction time:
+///
+/// ```ignore
+/// // RGB565 (2 bytes/pixel) — default, best for most embedded use cases
+/// let display = Sh8601Driver::<_, _, Rgb565>::new_heap::<_, FB_SIZE>(...)?;
+///
+/// // RGB888 (3 bytes/pixel) — higher color depth
+/// let display = Sh8601Driver::<_, _, Rgb888>::new_heap::<_, FB_SIZE>(...)?;
+/// ```
+pub trait Sh8601Color: PixelColor + Copy {
+    /// Bytes consumed per pixel in the framebuffer.
+    const BYTES_PER_PIXEL: usize;
+
+    /// Encode a pixel into the framebuffer at `out[..BYTES_PER_PIXEL]`.
+    fn encode(self, out: &mut [u8]);
+
+    /// Fill a framebuffer row slice with a single color.
+    ///
+    /// Default implementation encodes once and copies. Implementations may
+    /// override for format-specific fast paths (e.g. `memset` when all
+    /// bytes are equal).
+    fn fill_row(color: Self, row: &mut [u8]) {
+        let bpp = Self::BYTES_PER_PIXEL;
+        let mut tmp = [0u8; 4];
+        color.encode(&mut tmp[..bpp]);
+        for chunk in row.chunks_exact_mut(bpp) {
+            chunk.copy_from_slice(&tmp[..bpp]);
+        }
+    }
+
+    /// Fill the entire framebuffer with a single color.
+    fn fill_buf(color: Self, buf: &mut [u8]) {
+        Self::fill_row(color, buf);
+    }
+}
+
+impl Sh8601Color for Rgb565 {
+    const BYTES_PER_PIXEL: usize = 2;
+
+    #[inline]
+    fn encode(self, out: &mut [u8]) {
+        let raw = RawU16::from(self).into_inner();
+        out[0] = (raw >> 8) as u8;
+        out[1] = raw as u8;
+    }
+
+    fn fill_buf(color: Self, buf: &mut [u8]) {
+        let raw = RawU16::from(color).into_inner();
+        let hi = (raw >> 8) as u8;
+        let lo = raw as u8;
+        if hi == lo {
+            buf.fill(hi);
+        } else {
+            for chunk in buf.chunks_exact_mut(2) {
+                chunk[0] = hi;
+                chunk[1] = lo;
+            }
+        }
+    }
+}
+
+impl Sh8601Color for Rgb888 {
+    const BYTES_PER_PIXEL: usize = 3;
+
+    #[inline]
+    fn encode(self, out: &mut [u8]) {
+        out[0] = self.r();
+        out[1] = self.g();
+        out[2] = self.b();
+    }
+
+    fn fill_buf(color: Self, buf: &mut [u8]) {
+        let r = color.r();
+        let g = color.g();
+        let b = color.b();
+        if r == g && r == b {
+            buf.fill(r);
+        } else {
+            for chunk in buf.chunks_exact_mut(3) {
+                chunk[0] = r;
+                chunk[1] = g;
+                chunk[2] = b;
+            }
+        }
+    }
+}
+
+impl Sh8601Color for Gray8 {
+    const BYTES_PER_PIXEL: usize = 1;
+
+    #[inline]
+    fn encode(self, out: &mut [u8]) {
+        out[0] = self.luma();
+    }
+
+    fn fill_buf(color: Self, buf: &mut [u8]) {
+        buf.fill(color.luma());
+    }
+}
+
 /// Computes the framebuffer size (in bytes) for a given display and color mode.
 /// Recommended to use when defining generic constant framebuffer size (const `N`) when instantiating display controller driver with `new_static` and `new_heap`.
 pub const fn framebuffer_size(display: DisplaySize, color: ColorMode) -> usize {
@@ -219,10 +328,14 @@ impl core::ops::DerefMut for Framebuffer {
     }
 }
 
-/// Main Driver for the SH8601 display controller.
+/// Main driver for the SH8601 display controller.
 ///
-/// Generic over the display interface (`IFACE`) and reset pin (`RST`).
-pub struct Sh8601Driver<IFACE, RST>
+/// Generic over the display interface (`IFACE`), reset pin (`RST`), and
+/// pixel color format (`COLOR`). The color format defaults to [`Rgb565`].
+///
+/// The driver maintains a software framebuffer that is written to via the
+/// [`DrawTarget`] implementation and flushed to the display with [`flush`](Self::flush).
+pub struct Sh8601Driver<IFACE, RST, COLOR: Sh8601Color = Rgb565>
 where
     IFACE: ControllerInterface,
     RST: ResetInterface,
@@ -231,13 +344,117 @@ where
     reset: RST,
     framebuffer: Framebuffer,
     config: DisplaySize,
+    _color: PhantomData<COLOR>,
 }
 
-impl<IFACE, RST> Sh8601Driver<IFACE, RST>
+/// Builder for [`Sh8601Driver`] with optional custom initialization.
+///
+/// Use [`Sh8601Driver::builder`] to create a builder, then configure it
+/// and call [`build_heap`](Self::build_heap) to produce the driver.
+///
+/// ```ignore
+/// // Custom vendor init sequence:
+/// let driver = Sh8601Driver::<_, _, Rgb565>::builder(iface, reset, config)
+///     .with_init_commands(&VENDOR_INIT)
+///     .build_heap::<_, FB_SIZE>(&mut delay)?;
+/// ```
+pub struct Sh8601Builder<IFACE, RST, COLOR: Sh8601Color = Rgb565>
 where
     IFACE: ControllerInterface,
     RST: ResetInterface,
 {
+    interface: IFACE,
+    reset: RST,
+    config: DisplaySize,
+    init_commands: Option<&'static [(u8, &'static [u8], u16)]>,
+    _color: PhantomData<COLOR>,
+}
+
+impl<IFACE, RST, COLOR: Sh8601Color> Sh8601Builder<IFACE, RST, COLOR>
+where
+    IFACE: ControllerInterface,
+    RST: ResetInterface,
+{
+    /// Replace the default initialization command sequence.
+    ///
+    /// Each entry is `(command, data, delay_ms)`. The builder sends each
+    /// command with its data, then waits `delay_ms` milliseconds (0 = no
+    /// delay). The caller is responsible for the complete init including
+    /// sleep-out, color mode, and display-on commands.
+    pub fn with_init_commands(
+        mut self,
+        commands: &'static [(u8, &'static [u8], u16)],
+    ) -> Self {
+        self.init_commands = Some(commands);
+        self
+    }
+
+    /// Build the driver with a heap-allocated framebuffer.
+    ///
+    /// Performs a hardware reset, then sends either the custom init commands
+    /// (if [`with_init_commands`](Self::with_init_commands) was called) or
+    /// the default init sequence for the given [`ColorMode`].
+    pub fn build_heap<DELAY, const N: usize>(
+        self,
+        color: ColorMode,
+        delay: &mut DELAY,
+    ) -> Result<Sh8601Driver<IFACE, RST, COLOR>, DriverError<IFACE::Error, RST::Error>>
+    where
+        DELAY: DelayNs,
+    {
+        let mut driver = Sh8601Driver {
+            interface: self.interface,
+            reset: self.reset,
+            framebuffer: Framebuffer::Heap(Box::new([0u8; N])),
+            config: self.config,
+            _color: PhantomData,
+        };
+        driver.hard_reset()?;
+
+        if let Some(commands) = self.init_commands {
+            for &(cmd, data, delay_ms) in commands {
+                if data.is_empty() {
+                    driver.send_command(cmd)?;
+                } else {
+                    driver.send_command_with_data(cmd, data)?;
+                }
+                if delay_ms > 0 {
+                    delay.delay_ms(delay_ms as u32);
+                }
+            }
+        } else {
+            driver.initialize_display(delay, color)?;
+        }
+
+        Ok(driver)
+    }
+}
+
+impl<IFACE, RST, COLOR: Sh8601Color> Sh8601Driver<IFACE, RST, COLOR>
+where
+    IFACE: ControllerInterface,
+    RST: ResetInterface,
+{
+    /// Create a builder for configuring the driver before construction.
+    ///
+    /// Use this when you need to provide a custom initialization sequence
+    /// (e.g. vendor-specific register writes for a particular panel).
+    /// For the default init sequence, use [`new_heap`](Self::new_heap) or
+    /// [`new_static`](Self::new_static) directly.
+    pub fn builder(
+        interface: IFACE,
+        reset: RST,
+        config: DisplaySize,
+    ) -> Sh8601Builder<IFACE, RST, COLOR> {
+        Sh8601Builder {
+            interface,
+            reset,
+            config,
+            init_commands: None,
+            _color: PhantomData,
+        }
+    }
+
     /// Creates a new driver instance with static array and initializes the display.
     /// N is a constant representing the framebuffer size (number of pixels).
     /// N is calculated as `DisplaySize.width * DisplaySize.height * bytes_per_pixel`, where `bytes_per_pixel` is 2 for RGB565, 3 for RGB888, etc.
@@ -260,6 +477,7 @@ where
             reset,
             framebuffer: Framebuffer::Static(&mut framebuffer[..]),
             config,
+            _color: PhantomData,
         };
         driver.hard_reset()?;
         driver.initialize_display(&mut delay, color)?;
@@ -285,13 +503,14 @@ where
             reset,
             framebuffer: Framebuffer::Heap(Box::new([0u8; N])),
             config,
+            _color: PhantomData,
         };
         driver.hard_reset()?;
         driver.initialize_display(&mut delay, color)?;
         Ok(driver)
     }
 
-    /// Performs a hardware reset using the provided `ResetPin` implementation,
+    /// Performs a hardware reset using the provided [`ResetInterface`] implementation.
     pub fn hard_reset(&mut self) -> Result<(), DriverError<IFACE::Error, RST::Error>> {
         self.reset.reset().map_err(DriverError::ResetError)?;
         Ok(())
@@ -342,15 +561,15 @@ where
         Ok(())
     }
 
-    /// Send a command with no data
-    fn send_command(&mut self, cmd: u8) -> Result<(), DriverError<IFACE::Error, RST::Error>> {
+    /// Send a command with no data.
+    pub fn send_command(&mut self, cmd: u8) -> Result<(), DriverError<IFACE::Error, RST::Error>> {
         self.interface
             .send_command(cmd)
             .map_err(DriverError::InterfaceError)
     }
 
-    /// Helper to send a command with associated data parameters
-    fn send_command_with_data(
+    /// Send a command with associated data parameters.
+    pub fn send_command_with_data(
         &mut self,
         cmd: u8,
         data: &[u8],
