@@ -28,3 +28,9 @@ To run the example, with the WaveShare 1.8" AMOLED Display, clone the project an
 ```bash
 cargo run --release --example ws_18in_amoled --features "waveshare_18_amoled"
 ```
+
+To run the FPS benchmark example:
+
+```bash
+cargo run --release --example ws_18in_amoled_fps --features "waveshare_18_amoled"
+```
