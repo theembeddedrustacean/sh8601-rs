@@ -1,5 +1,11 @@
 {
   "rust-analyzer.cargo.allTargets": false,
+  "rust-analyzer.cargo.features": [
+    "waveshare_18_amoled"
+  ],
+  "rust-analyzer.check.features": [
+    "waveshare_18_amoled"
+  ],
   "rust-analyzer.cargo.target": "xtensa-esp32s3-none-elf",
   "rust-analyzer.server.extraEnv": {
     "RUSTUP_TOOLCHAIN": "stable"

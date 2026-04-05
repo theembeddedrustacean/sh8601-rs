@@ -28,7 +28,7 @@ esp-backtrace = { version = "0.18.1", optional = true, features = [
   "panic-handler",
   "println",
 ] }
-esp-hal = { version = "=1.0.0", optional = true, features = [
+esp-hal = { version = "1.0", optional = true, features = [
   "esp32s3",
   "psram",
   "unstable",
@@ -53,16 +53,27 @@ waveshare_18_amoled = [
   "esp-println/auto",
 ]
 
+[[example]]
+name = "ws_18in_amoled"
+required-features = ["waveshare_18_amoled"]
+
+[[example]]
+name = "ws_18in_amoled_fps"
+required-features = ["waveshare_18_amoled"]
+
 [profile.dev]
 # Rust debug is too slow.
 # For debug builds always builds with some optimization
 opt-level = "s"
+[profile.dev.packages."*"]
+opt-level = 3
 
 [profile.release]
 codegen-units = 1        # LLVM can perform better optimizations using a single thread
-debug = 2
 debug-assertions = false
 incremental = false
 lto = 'fat'
-opt-level = 's'
+opt-level = 3
 overflow-checks = false
+[profile.release.packages."*"]
+opt-level = 3
