@@ -381,10 +381,7 @@ where
     /// command with its data, then waits `delay_ms` milliseconds (0 = no
     /// delay). The caller is responsible for the complete init including
     /// sleep-out, color mode, and display-on commands.
-    pub fn with_init_commands(
-        mut self,
-        commands: &'static [(u8, &'static [u8], u16)],
-    ) -> Self {
+    pub fn with_init_commands(mut self, commands: &'static [(u8, &'static [u8], u16)]) -> Self {
         self.init_commands = Some(commands);
         self
     }
