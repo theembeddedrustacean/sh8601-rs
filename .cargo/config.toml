@@ -2,7 +2,7 @@
 runner = "espflash flash --monitor --chip esp32s3"
 
 [env]
-ESP_HAL_CONFIG_PSRAM_MODE = "octal"
+ESP_HAL_CONFIG_PSRAM_MODE = "octo"
 
 [build]
 rustflags = ["-C", "link-arg=-nostartfiles"]

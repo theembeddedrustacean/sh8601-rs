@@ -1153,7 +1153,7 @@ dependencies = [
 
 [[package]]
 name = "sh8601-rs"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "critical-section",
  "document-features",
